@@ -1,0 +1,143 @@
+# ==============================================================================
+#  azure-service-bus — terraform.tfvars
+# ==============================================================================
+#  Copy this file to `terraform.tfvars`, set the values, then run:
+#      tofu init && tofu apply        (or:  terraform init && terraform apply)
+#
+# AUTHENTICATION — Azure:
+#   The azurerm (and azuread) providers authenticate to Microsoft Entra ID
+#   (Azure AD) and resolve credentials in this order: explicit OIDC, then
+#   client certificate, then client secret, then Managed Identity, then Azure
+#   CLI.
+#   Quick start: az login (then `az account set --subscription <id>`; `az
+#   login --use-device-code` for headless, `az login --service-principal -u
+#   <appId> -p <secret> --tenant <tenant>` for SP).
+#   Environment variables Terraform reads:
+#     ARM_SUBSCRIPTION_ID — Target subscription GUID; required for plan/apply in provider v4.x.
+#     ARM_TENANT_ID — Entra ID (Azure AD) tenant GUID.
+#     ARM_CLIENT_ID — App registration / service principal (or user-assigned MSI) client id.
+#     ARM_CLIENT_SECRET  (secret) — Service principal client secret (secret-based auth).
+#     ARM_CLIENT_CERTIFICATE_PATH — Path to the PKCS#12 (.pfx) client certificate.
+#   Full guide (auth + remote state):  docs/CONNECTING-PROVIDERS.md#azure
+#
+#  Secrets below read "REPLACE_ME" — never commit real secrets. Prefer
+#  TF_VAR_<name> environment variables or a secrets manager.
+#  Status: static-validated, live-test pending (see README.md).
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+#  REQUIRED — you must set these
+# ------------------------------------------------------------------------------
+
+# name  —  string  (REQUIRED)
+#   Service Bus namespace name. Globally unique, 6-50 chars, must start with a
+#   letter, end with a letter or digit, and contain only letters, digits and
+#   hyphens.
+#   Constraint: name must be 6-50 chars, start with a letter, end with a letter
+#   or digit, and contain only letters, digits and hyphens.
+name                = "REPLACE_ME"
+
+# resource_group_name  —  string  (REQUIRED)
+#   Name of an existing resource group to create the namespace in.
+resource_group_name = "REPLACE_ME"
+
+# location  —  string  (REQUIRED)
+#   Azure region for the namespace.
+location            = "REPLACE_ME"
+
+# ------------------------------------------------------------------------------
+#  OPTIONAL — defaults shown; uncomment a line to override
+# ------------------------------------------------------------------------------
+
+# sku  —  string  (optional, default: "Standard")
+#   Namespace SKU. Basic has queues only (NO topics/subscriptions); Standard
+#   adds topics/subscriptions; Premium adds dedicated capacity, CMK and private
+#   endpoints.
+#   Constraint: sku must be Basic, Standard or Premium.
+sku                 = "Standard"
+
+# capacity  —  number  (optional, default: 1)
+#   Premium messaging units (ignored unless sku = Premium). One of 1, 2, 4, 8,
+#   16.
+#   Constraint: capacity must be one of 1, 2, 4, 8, 16 (only applied when sku =
+#   Premium).
+# capacity = 1
+
+# premium_messaging_partitions  —  number  (optional, default: 0)
+#   Number of messaging partitions for a Premium namespace (ignored unless sku =
+#   Premium). One of 0, 1, 2, 4.
+#   Constraint: premium_messaging_partitions must be one of 0, 1, 2, 4 (only
+#   applied when sku = Premium).
+# premium_messaging_partitions = 0
+
+# local_auth_enabled  —  bool  (optional, default: false)
+#   Allow SAS (shared access signature) authentication. Off by default: use
+#   Microsoft Entra ID + Azure RBAC. Control-plane management (creating
+#   queues/topics) works regardless; this only governs data-plane SAS keys.
+# local_auth_enabled = false
+
+# public_network_access_enabled  —  bool  (optional, default: true)
+#   Allow access over the public endpoint. Restricting this to
+#   private-endpoint-only requires the Premium SKU.
+# public_network_access_enabled = true
+
+# minimum_tls_version  —  string  (optional, default: "1.2")
+#   Minimum TLS version accepted by the namespace.
+#   Constraint: minimum_tls_version must be 1.0, 1.1 or 1.2.
+# minimum_tls_version = "1.2"
+
+# system_assigned_identity_enabled  —  bool  (optional, default: false)
+#   Create a system-assigned managed identity on the namespace (opt-in; used for
+#   customer-managed-key encryption on Premium and other Entra-authenticated
+#   integrations).
+# system_assigned_identity_enabled = false
+
+# user_assigned_identity_ids  —  list  (optional, default: [])
+#   User-assigned managed identity IDs to attach to the namespace.
+# user_assigned_identity_ids = []
+
+# customer_managed_key  —  object  (optional, default: null)
+#   Customer-managed key (CMK) encryption for the namespace — Premium SKU only.
+#   identity_id is a user-assigned managed identity with get/wrapKey/unwrapKey
+#   rights on the Key Vault key; it is attached to the namespace automatically.
+#   infrastructure_encryption_enabled adds a second (infrastructure-layer)
+#   encryption pass. Default null = Microsoft-managed keys.
+# customer_managed_key = null
+
+# queues  —  map  (optional, default: {})
+#   Service Bus queues keyed by queue name. Secure/operational defaults:
+#   dead-letter expired messages, 10 deliveries before dead-lettering.
+#   Constraint: queues max_delivery_count must be between 1 and 2000.
+queues = {
+  orders = {
+    max_delivery_count                   = 10
+    dead_lettering_on_message_expiration = true
+  }
+}
+
+# topics  —  map  (optional, default: {})
+#   Service Bus topics keyed by topic name, each with its own subscriptions map.
+#   Requires sku = Standard or Premium.
+#   Constraint: topics status must be Active, Disabled, SendDisabled or
+#   ReceiveDisabled.
+topics = {
+  events = {
+    support_ordering = true
+    subscriptions = {
+      all = {
+        max_delivery_count = 10
+      }
+      audit = {
+        max_delivery_count = 5
+      }
+    }
+  }
+}
+
+# tags  —  map  (optional, default: {})
+#   Tags applied to the namespace (Service Bus entities do not support tags).
+tags = {
+  environment = "example"
+  managed_by  = "iac-bazaar"
+}
